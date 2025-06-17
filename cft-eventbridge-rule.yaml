@@ -7,9 +7,9 @@ Parameters:
     Description: The name of the EventBridge rule.
     Default: Cerberus
 
-  CereberusEventBusArn:
+  CerberusEventBusArn:
     Type: String
-    Description: The ARN of the Cereberus EventBridge event bus in the target account.
+    Description: The ARN of the Cerberus EventBridge event bus in the target account.
     AllowedPattern: "^arn:aws:events:[a-z0-9-]+:\\d{12}:event-bus/[a-zA-Z0-9-_]+$"
     ConstraintDescription: Must be a valid EventBridge event bus ARN.
 
@@ -30,7 +30,7 @@ Resources:
             - "CreateAccountAssignment"
       State: ENABLED
       Targets:
-        - Arn: !Ref CereberusEventBusArn
+        - Arn: !Ref CerberusEventBusArn
           Id: "EventBusTarget"
           RoleArn: !GetAtt EventBridgeTargetRole.Arn
 
@@ -51,7 +51,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: "events:PutEvents"
-                Resource: !Ref CereberusEventBusArn
+                Resource: !Ref CerberusEventBusArn
 
 Outputs:
   EventBridgeRuleArn:
