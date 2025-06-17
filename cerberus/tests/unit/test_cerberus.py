@@ -27,7 +27,7 @@ class TestLambdaHandler(unittest.TestCase):
             "cerberus.src.cerberus.app.os.environ",
             {
                 "PermissionSetNamePattern": ".*",
-                "PrincipalUserNamePattern": ".*",
+                "PrincipalUserNameEmail": ".*",
                 "PrincipalGroupNamePattern": ".*",
             },
         ), patch(
