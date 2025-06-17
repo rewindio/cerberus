@@ -1,0 +1,201 @@
+import boto3
+import logging
+import os
+import re
+
+logger = logging.getLogger()
+client = boto3.client("sso-admin")
+
+
+def lambda_handler(event, context):
+    """Cerberus Lambda function processes removal of Control Tower provisioned access.
+
+    Parameters
+    ----------
+    event: dict, required
+        Input event to the Lambda function
+
+    context: object, required
+        Lambda Context runtime methods and attributes
+
+    Returns
+    ------
+        dict: Object containing the result of the Cerberus Lambda function.
+    """
+    logger.debug("Lambda function invoked with event: %s", event)
+    logger.debug("Lambda function context: %s", context)
+
+    instanceArn = event.get("DescribeInstance").get("InstanceArn")
+    targetId = event.get("RequestParameters").get("targetId")
+    targetType = event.get("RequestParameters").get("targetType", "AWS_ACCOUNT")
+    permissionSetArn = (
+        event.get("DescribePermissionSet").get("PermissionSet").get("PermissionSetArn")
+    )
+    permissionSetName = (
+        event.get("DescribePermissionSet").get("PermissionSet").get("Name")
+    )
+    principalType = event.get("RequestParameters").get("principalType")
+    principalId = event.get("RequestParameters").get("principalId")
+
+    if not all(
+        [
+            instanceArn,
+            targetId,
+            permissionSetArn,
+            permissionSetName,
+            principalType,
+            principalId,
+        ]
+    ):
+        logger.error("Missing required parameters in the event: {}".format(event))
+        return {
+            "result": "FAILED",
+            "message": "Missing required parameters in the event.",
+            "details": event,
+        }
+
+    if principalType not in ["USER", "GROUP"]:
+        logger.error("Invalid principal type: {}".format(principalType))
+        return {
+            "result": "FAILED",
+            "message": f"Invalid principal type: {principalType}. Expected 'USER' or 'GROUP'.",
+        }
+
+    principalName = (
+        event.get("DescribeUser").get("UserName")
+        if principalType == "USER"
+        else event.get("DescribeGroup").get("DisplayName")
+    )
+    logger.info(
+        "Processing principal type ({}) '{}'.".format(principalType, principalName)
+    )
+
+    try:
+
+        permissionSetNamePattern = os.environ.get("PermissionSetNamePattern")
+        permissionSetNamePatternRegex = re.compile(
+            permissionSetNamePattern, re.IGNORECASE
+        )
+        principalGroupNamePattern = os.environ.get("PrincipalGroupNamePattern")
+        principalGroupNameRegex = re.compile(principalGroupNamePattern, re.IGNORECASE)
+        principalUserNameEmail = (
+            os.environ.get("PrincipalUserNameEmail").strip().lower()
+        )
+
+        logger.info(
+            "Using regex for principal name: {}".format(principalGroupNameRegex.pattern)
+        )
+        logger.info(
+            "Using regex for permission set name: {}".format(
+                permissionSetNamePatternRegex.pattern
+            )
+        )
+        logger.info(
+            "Using principal user name email: {}".format(
+                principalUserNameEmail
+                if principalUserNameEmail
+                else "No username pattern specified"
+            )
+        )
+
+        if re.match(permissionSetNamePatternRegex, permissionSetName) and (
+            re.match(principalGroupNameRegex, principalName)
+            or principalUserNameEmail == principalName
+        ):
+            logger.info(
+                "Removing Control Tower provisioned '{}' access for principal '{}'.".format(
+                    principalType, principalName
+                )
+            )
+
+            # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sso-admin/client/delete_account_assignment.html
+            response = client.delete_account_assignment(
+                InstanceArn=instanceArn,
+                TargetId=targetId,
+                TargetType=targetType,
+                PermissionSetArn=permissionSetArn,
+                PrincipalType=principalType,
+                PrincipalId=principalId,
+            )
+            response = {"AccountAssignmentDeletionStatus": {"Status": "SUCCEEDED"}}
+
+            if (
+                response.get("AccountAssignmentDeletionStatus").get("Status")
+                == "SUCCEEDED"
+            ):
+                logger.info("Account assignment deletion succeeded.")
+                return {
+                    "result": "SUCCESS",
+                    "message": "Account assignment deletion succeeded.",
+                }
+            else:
+                logger.error("Account assignment deletion failed: %s", response)
+                return {
+                    "result": "FAILED",
+                    "message": "Account assignment deletion failed.",
+                    "details": response,
+                }
+        else:
+            logger.info(
+                "Principal '{}' ({}) does not match Control Tower provisioned access pattern. No action taken.".format(
+                    principalName, principalType
+                )
+            )
+            return {
+                "result": "SUCCESS",
+                "message": "No action taken for principal: {}".format(principalName),
+            }
+
+    except re.PatternError as e:
+        logger.error("Invalid regex pattern: %s", e)
+        return {
+            "result": "FAILED",
+            "message": "Invalid regex pattern.",
+            "details": str(e),
+            "errorName": type(e).__name__,
+        }
+
+    except client.exceptions.ConflictException as e:
+        logger.error("ConflictException occurred: %s", e)
+        return {
+            "result": "FAILED",
+            "message": "Conflict occurred while deleting account assignment.",
+            "details": str(e),
+            "errorName": type(e).__name__,
+        }
+
+    except client.exceptions.ResourceNotFoundException as e:
+        logger.error("ResourceNotFoundException occurred: %s", e)
+        return {
+            "result": "FAILED",
+            "message": "Resource not found while deleting account assignment.",
+            "details": str(e),
+            "errorName": type(e).__name__,
+        }
+
+    except client.exceptions.AccessDeniedException as e:
+        logger.error("AccessDeniedException occurred: %s", e)
+        return {
+            "result": "FAILED",
+            "message": "Access denied while deleting account assignment.",
+            "details": str(e),
+            "errorName": type(e).__name__,
+        }
+
+    except client.exceptions.ValidationException as e:
+        logger.error("ValidationException occurred: %s", e)
+        return {
+            "result": "FAILED",
+            "message": "Validation error occurred while deleting account assignment.",
+            "details": str(e),
+            "errorName": type(e).__name__,
+        }
+
+    except Exception as e:
+        logger.error("An error occurred: %s", e)
+        return {
+            "result": "FAILED",
+            "message": "An error occurred while processing the request.",
+            "details": str(e),
+            "errorName": type(e).__name__,
+        }

@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Cerberus, a state machine that removes AWS Control Tower default permission set associations.
+
+Parameters:
+  EventBusName:
+    Type: String
+    Default: "cerberus-event-bus"
+    Description: "The name of the custom EventBridge event bus for Cerberus"
+
+  ManagementAccountId:
+    Type: String
+    Description: "The Management AWS account ID that will send events to the Cerberus event bus"
+    AllowedPattern: "^[0-9]{12}$"
+    ConstraintDescription: "Must be a valid 12-digit AWS account ID"
+
+  LogGroupName:
+    Type: String
+    Default: "/cerberus"
+    Description: "The name of the CloudWatch Log Group for the Cerberus State Machine"
+    AllowedPattern: "^[.\\-_/#A-Za-z0-9]{1,512}\\Z"
+    MinLength: 1
+    MaxLength: 512
+    ConstraintDescription: "Log group name must be 1-512 characters long and can include letters, numbers, and the following characters: .-_/#"
+
+  LogGroupRetentionDays:
+    Type: Number
+    Default: 14
+    Description: "The retention period in days for the CloudWatch Log Group"
+    AllowedValues:
+      - 1
+      - 3
+      - 5
+      - 7
+      - 14
+      - 30
+      - 60
+      - 90
+      - 120
+      - 150
+      - 180
+      - 365
+      - 400
+      - 545
+      - 731
+      - 1096
+      - 1827
+      - 2192
+      - 2557
+      - 2922
+      - 3288
+      - 3653
+
+  PermissionSetNamePattern:
+    Type: String
+    Default: "^AWS(?:OrganizationsFullAccess|ReadOnlyAccess|ServiceCatalogEndUserAccess|ServiceCatalogAdminFullAccess|PowerUserAccess|AdministratorAccess)$"
+    Description: "Regex pattern for matching AWS Control Tower default permission set names, such as OrganizationsFullAccess and AdministratorAccess."
+
+  PrincipalGroupNamePattern:
+    Type: String
+    Default: "^AWS(?:LogArchiveViewers|LogArchiveAdmins|ControlTowerAdmins|AccountFactory|AuditAccountAdmins|SecurityAuditors|ServiceCatalogAdmins|SecurityAuditPowerUsers)$"
+    Description: "Regex pattern for matching AWS Control Tower default group principal names, such as LogArchiveAdmins and ControlTowerAdmins."
+
+  PrincipalUserNameEmail:
+    Type: String
+    Default: ""
+    Description: "Valid email addresses used by AWS Control Tower account factory enrollment. Leave empty to disable validation."
+    AllowedPattern: "^$|^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    ConstraintDescription: "Must be a valid email address or left empty."
+
+Resources:
+  SfnToCerberusFunctionConnector:
+    Type: AWS::Serverless::Connector
+    Properties:
+      Source:
+        Id: CerberusStateMachine
+      Destination:
+        Id: CerberusFunction
+      Permissions:
+        - Write
+
+  CerberusStateMachine:
+    Type: AWS::Serverless::StateMachine
+    DependsOn:
+      - CerberusEventBus
+      - CerberusLogGroup
+    Properties:
+      DefinitionUri: statemachine/cerberus.asl.json
+      DefinitionSubstitutions:
+        CerberusFunctionArn: !GetAtt CerberusFunction.Arn
+      Policies:
+        - CloudWatchPutMetricPolicy: {}
+        - Statement:
+            Effect: Allow
+            Action:
+              - identitystore:DescribeUser
+              - identitystore:DescribeGroup
+              - sso:DescribePermissionSet
+              - sso:ListPermissionSets
+              - sso:GetPermissionSet
+              - sso:DescribePermissionSetProvisioningStatus
+              - sso:DescribeInstance
+            Resource: "*"
+
+      Events:
+        CerberusEvent:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - "aws.sso"
+              detail-type:
+                - "AWS API Call via CloudTrail"
+              detail:
+                eventSource:
+                  - "sso.amazonaws.com"
+                eventName:
+                  - "CreateAccountAssignment"
+        CerberusEventManagementAccount:
+          Type: EventBridgeRule
+          Properties:
+            EventBusName: !Ref CerberusEventBus
+            Pattern:
+              source:
+                - "aws.sso"
+              detail-type:
+                - "AWS API Call via CloudTrail"
+              detail:
+                eventSource:
+                  - "sso.amazonaws.com"
+                eventName:
+                  - "CreateAccountAssignment"
+
+  CerberusFunction:
+    # checkov:skip=CKV_AWS_173: Lambda environment variables are encrypted with a KMS key
+    # checkov:skip=CKV_AWS_116: Dead Letter Queue is not required for this use case
+    # checkov:skip=CKV_AWS_117: Lambda function does not require VPC access
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/cerberus/
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      LoggingConfig:
+        LogGroup: !Ref CerberusLogGroup
+        ApplicationLogLevel: INFO
+        LogFormat: JSON
+      Environment:
+        Variables:
+          PermissionSetNamePattern: !Ref PermissionSetNamePattern
+          PrincipalGroupNamePattern: !Ref PrincipalGroupNamePattern
+          PrincipalUserNameEmail: !Ref PrincipalUserNameEmail
+      Policies:
+        - CloudWatchPutMetricPolicy: {}
+        - Statement:
+            Effect: Allow
+            Action:
+              - sso:DeleteAccountAssignment
+            Resource: "*"
+        - Statement:
+            Effect: Allow
+            Action:
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+              - logs:DescribeLogGroups
+              - logs:DescribeLogStreams
+            Resource:
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:${LogGroupName}:*"
+              - !GetAtt CerberusLogGroup.Arn
+      ReservedConcurrentExecutions: 5
+      MemorySize: 128
+      Timeout: 300
+
+  CerberusEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      Name: !Ref EventBusName
+      Description: "Event bus for IAM Identity Center events from Management Account (delegated admin)"
+
+  CerberusEventBusPolicy:
+    Type: AWS::Events::EventBusPolicy
+    Properties:
+      StatementId: "CerberusEventBusPolicy"
+      Principal: !Ref ManagementAccountId
+      Action: "events:PutEvents"
+      EventBusName: !Ref CerberusEventBus
+
+  CerberusLogGroup:
+    # checkov:skip=CKV_AWS_158: Log group encryption is already handled with a KMS key
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Ref LogGroupName
+      RetentionInDays: !Ref LogGroupRetentionDays
+
+Outputs:
+  EventBusArn:
+    Description: "The ARN of the custom EventBridge event bus for Cerberus"
+    Value: !GetAtt CerberusEventBus.Arn

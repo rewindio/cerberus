@@ -1,0 +1,184 @@
+{
+  "Comment": "Cerberus, a state machine that removes AWS Control Tower default permission set associations.",
+  "StartAt": "Process Event Details",
+  "States": {
+    "Process Event Details": {
+      "Type": "Pass",
+      "Parameters": {
+        "EventTime.$": "$.detail.eventTime",
+        "EventID.$": "$.detail.eventID",
+        "EventSource.$": "$.detail.eventSource",
+        "EventName.$": "$.detail.eventName",
+        "SourceIPAddress.$": "$.detail.sourceIPAddress",
+        "RequestParameters.$": "$.detail.requestParameters",
+        "UserArn.$": "$.detail.userIdentity.arn"
+      },
+      "Next": "Is CreateAccountAssignment Action?"
+    },
+    "Is CreateAccountAssignment Action?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "DescribePermissionSet",
+          "And": [
+            {
+              "Variable": "$.EventName",
+              "StringMatches": "CreateAccountAssignment"
+            },
+            {
+              "Variable": "$.RequestParameters.permissionSetArn",
+              "IsPresent": true
+            }
+          ]
+        }
+      ],
+      "Default": "Fail Unsupported Action"
+    },
+    "Fail Unsupported Action": {
+      "Type": "Fail",
+      "Error": "Unsupported Action"
+    },
+    "DescribePermissionSet": {
+      "Type": "Task",
+      "Parameters": {
+        "InstanceArn.$": "$.RequestParameters.instanceArn",
+        "PermissionSetArn.$": "$.RequestParameters.permissionSetArn"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:ssoadmin:describePermissionSet",
+      "ResultPath": "$.DescribePermissionSet",
+      "Next": "Is Permission Set Name Returned?"
+    },
+    "Is Permission Set Name Returned?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "DescribeInstance",
+          "Variable": "$.DescribePermissionSet.PermissionSet.Name",
+          "IsPresent": true
+        }
+      ],
+      "Default": "Fail Missing Permission Set Name"
+    },
+    "Fail Missing Permission Set Name": {
+      "Type": "Fail"
+    },
+    "DescribeInstance": {
+      "Type": "Task",
+      "Parameters": {
+        "InstanceArn.$": "$.RequestParameters.instanceArn"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:ssoadmin:describeInstance",
+      "Next": "Is Identity Store Id Returned?",
+      "ResultPath": "$.DescribeInstance"
+    },
+    "Is Identity Store Id Returned?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "Is Principal Type USER or GROUP?",
+          "Variable": "$.DescribeInstance.IdentityStoreId",
+          "IsPresent": true
+        }
+      ],
+      "Default": "Fail Missing Identity Store ID"
+    },
+    "Fail Missing Identity Store ID": {
+      "Type": "Fail"
+    },
+    "Is Principal Type USER or GROUP?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.RequestParameters.principalType",
+          "StringMatches": "USER",
+          "Next": "DescribeUser"
+        },
+        {
+          "Next": "DescribeGroup",
+          "Variable": "$.RequestParameters.principalType",
+          "StringMatches": "GROUP"
+        }
+      ],
+      "Default": "Fail Unsupported Principal Type"
+    },
+    "DescribeUser": {
+      "Type": "Task",
+      "Parameters": {
+        "IdentityStoreId.$": "$.DescribeInstance.IdentityStoreId",
+        "UserId.$": "$.RequestParameters.principalId"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:identitystore:describeUser",
+      "Next": "Is User or Group Name Returned?",
+      "ResultPath": "$.DescribeUser"
+    },
+    "Is User or Group Name Returned?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "Cerberus Lambda Invoke",
+          "Or": [
+            {
+              "Variable": "$.DescribeUser.DisplayName",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.DescribeGroup.DisplayName",
+              "IsPresent": true
+            }
+          ]
+        }
+      ],
+      "Default": "Fail Missing Describe User or Group Name"
+    },
+    "Fail Missing Describe User or Group Name": {
+      "Type": "Fail"
+    },
+    "DescribeGroup": {
+      "Type": "Task",
+      "Parameters": {
+        "IdentityStoreId.$": "$.DescribeInstance.IdentityStoreId",
+        "GroupId.$": "$.RequestParameters.principalId"
+      },
+      "Resource": "arn:aws:states:::aws-sdk:identitystore:describeGroup",
+      "Next": "Is User or Group Name Returned?",
+      "ResultPath": "$.DescribeGroup"
+    },
+    "Cerberus Lambda Invoke": {
+      "Type": "Task",
+      "Resource": "${CerberusFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": ["States.TaskFailed"],
+          "IntervalSeconds": 15,
+          "MaxAttempts": 5,
+          "BackoffRate": 1.5
+        }
+      ],
+      "InputPath": "$",
+      "ResultPath": "$.CerberusLambda",
+      "Next": "Delete Account Assignment Completed Successfully?"
+    },
+    "Delete Account Assignment Completed Successfully?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Next": "Success Removing Access",
+          "Variable": "$.CerberusLambda.result",
+          "StringEquals": "SUCCESS"
+        }
+      ],
+      "Default": "Fail Removing Access"
+    },
+    "Success Removing Access": {
+      "Type": "Succeed"
+    },
+    "Fail Removing Access": {
+      "Type": "Fail",
+      "CausePath": "$.CerberusLambda.message",
+      "ErrorPath": "$.CerberusLambda.errorName"
+    },
+    "Fail Unsupported Principal Type": {
+      "Type": "Fail"
+    }
+  }
+}
