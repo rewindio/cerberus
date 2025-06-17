@@ -10,7 +10,13 @@ We have created [Cerberus](https://www.britannica.com/topic/Cerberus) to monitor
 
 # AWS Serverless Application Model (SAM)
 
-Instruction on how to deploy the application, [Cerberus AWS Sam App](cerberus/README.md).
+Instruction on how to deploy the application, [Cerberus AWS SAM App](cerberus/README.md).
+
+Deployment steps:
+
+1. Deploy the [Cerberus AWS SAM App](cerberus/template.yaml) in the Management or delegated administrator IAM Identity Center account
+2. Deploy the [EventBrdige Rule](cft-eventbridge-rule.yaml) in the Management account
+   - Reference the Output `EventBusArn` from the **Cerberus AWS SAM App** deployed stack for `CerberusEventBusArn` parameter
 
 ## Contributing
 
