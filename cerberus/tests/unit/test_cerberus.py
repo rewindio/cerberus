@@ -1,99 +1,100 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from cerberus.src.cerberus.app import lambda_handler
+import os
 
 
 class TestLambdaHandler(unittest.TestCase):
 
     @patch("cerberus.src.cerberus.app.logger")
-    def test_lambda_handler_successful_deletion(self, mock_logger):
+    @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
+    def test_lambda_handler_successful_deletion(self, mock_client, mock_logger):
         event = {
-            "DescribeInstance": {"InstanceArn": "arn:aws:sso:::instance/some-instance"},
+            "DescribeInstance": {
+                "InstanceArn": "arn:aws:sso:::instance/sso-instance-id"
+            },
             "RequestParameters": {
-                "targetId": "123456789012",
+                "targetId": "target-id",
                 "targetType": "AWS_ACCOUNT",
                 "principalType": "USER",
-                "principalId": "some-id",
+                "principalId": "user-id",
             },
             "DescribePermissionSet": {
                 "PermissionSet": {
-                    "PermissionSetArn": "arn:aws:sso:::permissionSet/some-permission-set",
-                    "Name": "SomePermissionSet",
+                    "PermissionSetArn": "arn:aws:sso:::permissionSet/sso-instance-id/permission-set-id",
+                    "Name": "MatchingPermissionSetName",
                 }
             },
-            "DescribeUser": {"DisplayName": "SomeUser"},
+            "DescribeUser": {"UserName": "matchinguser@example.com"},
         }
-        with patch(
-            "cerberus.src.cerberus.app.os.environ",
-            {
-                "PermissionSetNamePattern": ".*",
-                "PrincipalUserNameEmail": ".*",
-                "PrincipalGroupNamePattern": ".*",
-            },
-        ), patch(
-            "cerberus.src.cerberus.app.client.delete_account_assignment",
-            return_value={"AccountAssignmentDeletionStatus": {"Status": "SUCCEEDED"}},
-        ):
-            result = lambda_handler(event, None)
+        os.environ["PermissionSetNamePattern"] = "^MatchingPermissionSetName$"
+        os.environ["PrincipalGroupNamePattern"] = "^MatchingGroupName$"
+        os.environ["PrincipalUserNameEmail"] = "matchinguser@example.com"
+        mock_client.delete_account_assignment.return_value = {
+            "AccountAssignmentDeletionStatus": {"Status": "SUCCEEDED"}
+        }
+        result = lambda_handler(event, None)
         self.assertEqual(result["result"], "SUCCESS")
         self.assertIn("Account assignment deletion succeeded", result["message"])
 
     @patch("cerberus.src.cerberus.app.logger")
-    def test_lambda_handler_no_action_taken(self, mock_logger):
+    @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
+    def test_lambda_handler_no_action_taken(self, mock_client, mock_logger):
         event = {
-            "DescribeInstance": {"InstanceArn": "arn:aws:sso:::instance/some-instance"},
+            "DescribeInstance": {
+                "InstanceArn": "arn:aws:sso:::instance/sso-instance-id"
+            },
             "RequestParameters": {
-                "targetId": "123456789012",
+                "targetId": "target-id",
                 "targetType": "AWS_ACCOUNT",
                 "principalType": "USER",
-                "principalId": "some-id",
+                "principalId": "user-id",
             },
             "DescribePermissionSet": {
                 "PermissionSet": {
-                    "PermissionSetArn": "arn:aws:sso:::permissionSet/some-permission-set",
+                    "PermissionSetArn": "arn:aws:sso:::permissionSet/sso-instance-id/permission-set-id",
                     "Name": "NonMatchingPermissionSet",
                 }
             },
-            "DescribeUser": {"DisplayName": "NonMatchingUser"},
+            "DescribeUser": {"UserName": "nonmatchinguser@example.com"},
         }
-        with patch(
-            "cerberus.src.cerberus.app.os.environ",
-            {
-                "PermissionSetNamePattern": "MatchingPattern",
-                "PrincipalUserNamePattern": "MatchingPattern",
-                "PrincipalGroupNamePattern": "MatchingPattern",
-            },
-        ):
-            result = lambda_handler(event, None)
+        os.environ["PermissionSetNamePattern"] = "^MatchingPermissionSetName$"
+        os.environ["PrincipalGroupNamePattern"] = "^MatchingGroupName$"
+        os.environ["PrincipalUserNameEmail"] = "matchinguser@example.com"
+        mock_client.delete_account_assignment.return_value = {
+            "AccountAssignmentDeletionStatus": {"Status": "SUCCEEDED"}
+        }
+        result = lambda_handler(event, None)
         self.assertEqual(result["result"], "SUCCESS")
         self.assertIn("No action taken for principal", result["message"])
 
     @patch("cerberus.src.cerberus.app.logger")
-    def test_lambda_handler_regex_pattern_error(self, mock_logger):
+    @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
+    def test_lambda_handler_regex_pattern_error(self, mock_client, mock_logger):
         event = {
-            "DescribeInstance": {"InstanceArn": "arn:aws:sso:::instance/some-instance"},
+            "DescribeInstance": {
+                "InstanceArn": "arn:aws:sso:::instance/sso-instance-id"
+            },
             "RequestParameters": {
-                "targetId": "123456789012",
+                "targetId": "target-id",
                 "targetType": "AWS_ACCOUNT",
                 "principalType": "USER",
-                "principalId": "some-id",
+                "principalId": "user-id",
             },
             "DescribePermissionSet": {
                 "PermissionSet": {
-                    "PermissionSetArn": "arn:aws:sso:::permissionSet/some-permission-set",
-                    "Name": "SomePermissionSet",
+                    "PermissionSetArn": "arn:aws:sso:::permissionSet/sso-instance-id/permission-set-id",
+                    "Name": "MatchingPermissionSetName",
                 }
             },
-            "DescribeUser": {"DisplayName": "SomeUser"},
+            "DescribeUser": {"UserName": "matchinguser@example.com"},
         }
-        with patch(
-            "cerberus.src.cerberus.app.os.environ",
-            {
-                "PermissionSetNamePattern": "[",
-                "PrincipalUserNamePattern": ".*",
-                "PrincipalGroupNamePattern": ".*",
-            },
-        ):
-            result = lambda_handler(event, None)
+        os.environ["PermissionSetNamePattern"] = "["
+        os.environ["PrincipalGroupNamePattern"] = "^MatchingGroupName$"
+        os.environ["PrincipalUserNameEmail"] = "matchinguser@example.com"
+        mock_client.delete_account_assignment.return_value = {
+            "AccountAssignmentDeletionStatus": {"Status": "SUCCEEDED"}
+        }
+        result = lambda_handler(event, None)
         self.assertEqual(result["result"], "FAILED")
         self.assertIn("Invalid regex pattern", result["message"])
