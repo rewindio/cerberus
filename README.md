@@ -1,7 +1,5 @@
 # Cerberus
 
-⚠️ This project is currently under development. ⚠️
-
 ![Cerberus](/static/CerberusLogo.png)
 
 AWS Control Tower's default behavior in managed mode is to assign baseline [IAM Identity Center Groups for AWS Control Tower](https://docs.aws.amazon.com/en_us/controltower/latest/userguide//sso-groups.html) to newly enrolled accounts. These group assignments are also reapplied when an account update is performed; for instance, when a new version of the landing zone is made available.
