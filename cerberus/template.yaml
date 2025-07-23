@@ -133,9 +133,6 @@ Resources:
                   - "CreateAccountAssignment"
 
   CerberusFunction:
-    # checkov:skip=CKV_AWS_173: Lambda environment variables are encrypted with a KMS key
-    # checkov:skip=CKV_AWS_116: Dead Letter Queue is not required for this use case
-    # checkov:skip=CKV_AWS_117: Lambda function does not require VPC access
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: src/cerberus/
@@ -186,7 +183,6 @@ Resources:
       EventBusName: !Ref CerberusEventBus
 
   CerberusLogGroup:
-    # checkov:skip=CKV_AWS_158: Log group encryption is already handled with a KMS key
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Ref LogGroupName
