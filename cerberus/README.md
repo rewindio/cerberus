@@ -60,6 +60,23 @@ The following parameters are defined in the `template.yaml` file and can be cust
 - **Allowed Pattern**: `^$|^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$`
 - **Constraint Description**: Must be a valid email address or left empty.
 
+### NotificationEmail
+
+- **Type**: String
+- **Description**: Email address to receive notifications when the Cerberus state machine execution fails.
+- **Allowed Pattern**: `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$`
+- **Constraint Description**: Must be a valid email address.
+
+## Monitoring and Alerts
+
+Cerberus includes built-in monitoring capabilities:
+
+- **CloudWatch Alarm**: Automatically monitors the state machine for execution failures
+- **SNS Notifications**: Sends email notifications to the specified address when failures occur
+- **Failure Detection**: Triggers alerts when any state machine execution fails
+
+The monitoring system helps ensure quick response to any issues with the Cerberus state machine execution.
+
 ## Build and Deploy
 
 ### Build
@@ -89,13 +106,13 @@ This parameter enables removal of the default User assignment that will have adm
 Deploy the application with the following command:
 
 ```bash
-sam deploy --region us-east-1 --parameter-overrides ManagementAccountId=012345678901 LogGroupName=/cerberus
+sam deploy --region us-east-1 --parameter-overrides ManagementAccountId=012345678901 LogGroupName=/cerberus NotificationEmail=your-email@company.com
 ```
 
 To include RegEx patterns for permissions and principals, use:
 
 ```bash
-sam deploy --region us-east-1 --parameter-overrides ManagementAccountId=012345678901 LogGroupName=/cerberus PermissionSetNamePattern='^AWS(?:OrganizationsFullAccess|ReadOnlyAccess|ServiceCatalogEndUserAccess|ServiceCatalogAdminFullAccess|PowerUserAccess|AdministratorAccess)$' PrincipalNamePattern='^AWS(?:LogArchiveViewers|LogArchiveAdmins|ControlTowerAdmins|AccountFactory|AuditAccountAdmins|SecurityAuditors|ServiceCatalogAdmins|SecurityAuditPowerUsers)$' PrincipalUserNameEmail='devops+control-tower-account-factory@company.xyz'
+sam deploy --region us-east-1 --parameter-overrides ManagementAccountId=012345678901 LogGroupName=/cerberus PermissionSetNamePattern='^AWS(?:OrganizationsFullAccess|ReadOnlyAccess|ServiceCatalogEndUserAccess|ServiceCatalogAdminFullAccess|PowerUserAccess|AdministratorAccess)$' PrincipalNamePattern='^AWS(?:LogArchiveViewers|LogArchiveAdmins|ControlTowerAdmins|AccountFactory|AuditAccountAdmins|SecurityAuditors|ServiceCatalogAdmins|SecurityAuditPowerUsers)$' PrincipalUserNameEmail='devops+control-tower-account-factory@company.xyz' NotificationEmail=your-email@company.com
 ```
 
 ## Testing

@@ -69,6 +69,12 @@ Parameters:
     AllowedPattern: "^$|^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
     ConstraintDescription: "Must be a valid email address or left empty."
 
+  NotificationEmail:
+    Type: String
+    Description: "Email address to receive notifications when the Cerberus state machine execution fails"
+    AllowedPattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    ConstraintDescription: "Must be a valid email address"
+
 Resources:
   SfnToCerberusFunctionConnector:
     Type: AWS::Serverless::Connector
@@ -187,6 +193,32 @@ Resources:
     Properties:
       LogGroupName: !Ref LogGroupName
       RetentionInDays: !Ref LogGroupRetentionDays
+
+  CerberusExecutionFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Cerberus State Machine execution failed"
+      ComparisonOperator: GreaterThanThreshold
+      EvaluationPeriods: 1
+      MetricName: ExecutionsFailed
+      Namespace: AWS/States
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+      Dimensions:
+        - Name: StateMachineArn
+          Value: !Ref CerberusStateMachine
+      AlarmActions:
+        - !Ref CerberusFailureNotificationTopic
+
+  CerberusFailureNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "cerberus-failure-notifications"
+      DisplayName: "Cerberus State Machine Failure Notifications"
+      Subscription:
+        - Endpoint: !Ref NotificationEmail
+          Protocol: email
 
 Outputs:
   EventBusArn:
