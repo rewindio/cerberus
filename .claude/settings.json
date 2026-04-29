@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__awslabs_aws-documentation-mcp-server__search_documentation",
+      "mcp__awslabs_aws-documentation-mcp-server__read_documentation",
+      "mcp__awslabs_aws-documentation-mcp-server__read_sections",
+      "mcp__awslabs_aws-documentation-mcp-server__recommend"
+    ]
+  },
+  "enabledPlugins": {
+    "aws-serverless@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true
+  }
+}

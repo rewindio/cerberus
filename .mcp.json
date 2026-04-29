@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "awslabs.aws-documentation-mcp-server": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "--interactive",
+        "--env",
+        "FASTMCP_LOG_LEVEL=ERROR",
+        "--env",
+        "AWS_DOCUMENTATION_PARTITION=aws",
+        "public.ecr.aws/awslabs-mcp/awslabs/aws-documentation-mcp-server:latest"
+      ],
+      "env": {},
+      "disabled": false,
+      "autoApprove": []
+    },
+    "awslabs-cloudwatch-mcp-server": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "AWS_PROFILE=cerberus",
+        "-e",
+        "AWS_REGION=ca-central-1",
+        "-e",
+        "FASTMCP_LOG_LEVEL=ERROR",
+        "-v",
+        "${HOME}/.aws:/app/.aws:ro",
+        "public.ecr.aws/awslabs-mcp/awslabs/cloudwatch-mcp-server:latest"
+      ],
+      "env": {}
+    }
+  }
+}
+

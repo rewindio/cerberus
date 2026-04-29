@@ -135,3 +135,31 @@ To delete the deployed stack, use:
 ```bash
 sam delete --stack-name "cerberus"
 ```
+
+## CloudWatch MCP Server
+
+The repo includes a pre-configured CloudWatch MCP server (`.mcp.json`) that gives Claude Code live read access to the deployed Cerberus stack — Step Functions execution history, Lambda logs, and CloudWatch metrics — without leaving the editor.
+
+### AWS Profile Setup
+
+The server expects a local AWS CLI profile named **`cerberus`** with read-only CloudWatch access. Create it using IAM Identity Center or a dedicated IAM user/role:
+
+```bash
+# Option A — SSO profile (recommended)
+aws configure sso --profile cerberus
+
+# Option B — static credentials
+aws configure --profile cerberus
+```
+
+Attach the AWS managed policy **`arn:aws:iam::aws:policy/CloudWatchLogsReadOnlyAccess`** to whichever principal the profile authenticates as. The MCP server only needs read access; do not grant write or broader permissions.
+
+The server targets `ca-central-1` by default (set in `.mcp.json`). If your stack is in a different region, update `AWS_REGION` in `.mcp.json` accordingly.
+
+### What It Gives You
+
+Once the profile is configured, Claude Code can query the `/cerberus` log group directly to:
+
+- Inspect Lambda invocation results and errors
+- Trace Step Functions execution failures end-to-end
+- Pull CloudWatch alarm history
