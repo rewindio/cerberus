@@ -19,8 +19,16 @@
       "Type": "Choice",
       "Choices": [
         {
-          "Variable": "$.RequestParameters.targetId",
-          "StringEquals": "${ManagementAccountId}",
+          "And": [
+            {
+              "Variable": "$.RequestParameters.targetId",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.RequestParameters.targetId",
+              "StringEquals": "${ManagementAccountId}"
+            }
+          ],
           "Next": "Skip Management Account Target"
         }
       ],
