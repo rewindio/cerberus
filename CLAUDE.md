@@ -47,12 +47,11 @@ The **`code-review` plugin** (`code-review@claude-plugins-official`) is also ena
 
 ## PR Requirements
 
-After opening a PR, run the `code-review` plugin before requesting human review:
+After opening a PR:
 
-```
-/code-review
-```
-
-The plugin (`code-review@claude-plugins-official`) is enabled at project scope in `.claude/settings.json`. Use it to catch security, logic, and style issues before CODEOWNERS reviewers see the PR.
+1. Run `/code-review` and read the full output before doing anything else
+2. Address any issues identified — push fixes to the branch if needed
+3. Post the complete `/code-review` output as a PR comment via `gh pr comment <number> --body "..."` so human reviewers have the analysis in context
+4. Only then request human review from CODEOWNERS
 
 CODEOWNERS requires approval from both `@rewindio/AppSec` and `@rewindio/devops` before merging. Do not merge without both approvals.
