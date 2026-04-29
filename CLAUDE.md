@@ -37,9 +37,13 @@ Two MCP servers are configured in `.mcp.json` at the repo root. Use them proacti
 
 **`awslabs.aws-documentation-mcp-server`** — AWS official docs, resource schemas, IAM policy references, API signatures. Reach for this whenever you're working on `cerberus/template.yaml`, `cerberus/statemachine/cerberus.asl.json`, or `cft-eventbridge-rule.yaml`, or any time you need to verify an AWS API call, IAM action name, or resource attribute.
 
-The **`aws-serverless` plugin** (`aws-serverless@claude-plugins-official`) is enabled at project scope in `.claude/settings.json`. It provides SAM-aware skills and serverless-specific context on top of the documentation MCP server.
-
 **`awslabs-cloudwatch-mcp-server`** — Live CloudWatch access to the deployed Cerberus stack. Use this to debug Step Functions execution failures, inspect Lambda errors, or trace an event end-to-end. The default log group is `/cerberus` (parameterized at deploy time). The server is pre-configured with `AWS_PROFILE=cerberus` and `AWS_REGION=ca-central-1`; the `cerberus` profile must exist locally with CloudWatch read-only access (see `cerberus/README.md` for profile setup).
+
+## Plugins
+
+The **`aws-serverless` plugin** (`aws-serverless@claude-plugins-official`) is enabled at project scope in `.claude/settings.json`. It provides SAM-aware skills and serverless-specific context for working with `cerberus/template.yaml`, `cerberus/statemachine/cerberus.asl.json`, and `cft-eventbridge-rule.yaml`.
+
+The **`code-review` plugin** (`code-review@claude-plugins-official`) is also enabled. See PR Requirements below.
 
 ## PR Requirements
 
