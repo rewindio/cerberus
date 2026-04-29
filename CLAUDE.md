@@ -31,9 +31,13 @@ The three Lambda environment variables below are the main way to control what ge
 
 Tests use stdlib `unittest`, not pytest. Do not add pytest dependencies or use pytest-style fixtures. Test file: `cerberus/tests/unit/test_cerberus.py`.
 
-## SAM / Step Functions / CloudFormation Work
+## MCP Servers
 
-When working with `cerberus/template.yaml`, `cerberus/statemachine/cerberus.asl.json`, or `cft-eventbridge-rule.yaml`, use the `aws-serverless` MCP plugin (https://claude.ai/plugins/aws-serverless). It provides accurate resource schemas, ASL syntax validation, and SAM transform awareness that significantly reduces iteration on these files.
+Two MCP servers are configured in `.mcp.json` at the repo root. Use them proactively — don't guess at AWS API shapes or dig through logs manually.
+
+**`awslabs.aws-documentation-mcp-server`** — AWS official docs, resource schemas, IAM policy references, API signatures. Reach for this whenever you're working on `cerberus/template.yaml`, `cerberus/statemachine/cerberus.asl.json`, or `cft-eventbridge-rule.yaml`, or any time you need to verify an AWS API call, IAM action name, or resource attribute.
+
+**`awslabs-cloudwatch-mcp-server`** — Live CloudWatch access to the deployed Cerberus stack. Use this to debug Step Functions execution failures, inspect Lambda errors, or trace an event end-to-end. The default log group is `/cerberus` (parameterized at deploy time). The server is pre-configured with `AWS_PROFILE=cerberus` and `AWS_REGION=ca-central-1`; the `cerberus` profile must exist locally with CloudWatch read-only access (see `cerberus/README.md` for profile setup).
 
 ## PR Requirements
 
