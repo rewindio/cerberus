@@ -108,9 +108,10 @@ def lambda_handler(event, context):
                 )
             )
 
-            # DeleteAccountAssignment is asynchronous — the initial response typically returns
-            # Status=IN_PROGRESS and the actual deletion completes later. Real failures surface
-            # as exceptions (handled below). See:
+            # DeleteAccountAssignment is async: the initial response usually returns
+            # Status=IN_PROGRESS and the actual deletion completes later. Treat any non-FAILED
+            # status as accepted; a synchronous Status=FAILED (rare — e.g. target out of scope)
+            # or any client.exceptions.* is a real failure. See:
             # https://docs.aws.amazon.com/singlesignon/latest/APIReference/API_DeleteAccountAssignment.html
             response = client.delete_account_assignment(
                 InstanceArn=instanceArn,
