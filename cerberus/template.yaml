@@ -95,6 +95,7 @@ Resources:
       DefinitionUri: statemachine/cerberus.asl.json
       DefinitionSubstitutions:
         CerberusFunctionArn: !GetAtt CerberusFunction.Arn
+        ManagementAccountId: !Ref ManagementAccountId
       Policies:
         - CloudWatchPutMetricPolicy: {}
         - Statement:
