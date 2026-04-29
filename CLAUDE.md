@@ -43,4 +43,12 @@ The **`aws-serverless` plugin** (`aws-serverless@claude-plugins-official`) is en
 
 ## PR Requirements
 
+After opening a PR, run the `code-review` plugin before requesting human review:
+
+```
+/code-review
+```
+
+The plugin (`code-review@claude-plugins-official`) is enabled at project scope in `.claude/settings.json`. Use it to catch security, logic, and style issues before CODEOWNERS reviewers see the PR.
+
 CODEOWNERS requires approval from both `@rewindio/AppSec` and `@rewindio/devops` before merging. Do not merge without both approvals.
