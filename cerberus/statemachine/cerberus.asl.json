@@ -13,7 +13,35 @@
         "RequestParameters.$": "$.detail.requestParameters",
         "UserArn.$": "$.detail.userIdentity.arn"
       },
-      "Next": "Is CreateAccountAssignment Action?"
+      "Next": "Is Target Management Account?"
+    },
+    "Is Target Management Account?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "And": [
+            {
+              "Variable": "$.RequestParameters.targetId",
+              "IsPresent": true
+            },
+            {
+              "Variable": "$.RequestParameters.targetId",
+              "StringEquals": "${ManagementAccountId}"
+            }
+          ],
+          "Next": "Skip Management Account Target"
+        }
+      ],
+      "Default": "Is CreateAccountAssignment Action?"
+    },
+    "Skip Management Account Target": {
+      "Type": "Pass",
+      "Result": {
+        "result": "SKIPPED",
+        "reason": "Target is the Management account; delegated admin cannot modify Management-account assignments."
+      },
+      "ResultPath": "$.SkipReason",
+      "End": true
     },
     "Is CreateAccountAssignment Action?": {
       "Type": "Choice",

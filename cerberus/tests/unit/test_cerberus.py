@@ -35,7 +35,8 @@ class TestLambdaHandler(unittest.TestCase):
         }
         result = lambda_handler(event, None)
         self.assertEqual(result["result"], "SUCCESS")
-        self.assertIn("Account assignment deletion succeeded", result["message"])
+        self.assertIn("SUCCEEDED", result["message"])
+        self.assertIn("AccountAssignmentDeletionStatus", result["details"])
 
     @patch("cerberus.src.cerberus.app.logger")
     @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
@@ -98,3 +99,120 @@ class TestLambdaHandler(unittest.TestCase):
         result = lambda_handler(event, None)
         self.assertEqual(result["result"], "FAILED")
         self.assertIn("Invalid regex pattern", result["message"])
+
+    @patch("cerberus.src.cerberus.app.logger")
+    @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
+    def test_lambda_handler_in_progress_status(self, mock_client, mock_logger):
+        event = {
+            "DescribeInstance": {
+                "InstanceArn": "arn:aws:sso:::instance/sso-instance-id"
+            },
+            "RequestParameters": {
+                "targetId": "target-id",
+                "targetType": "AWS_ACCOUNT",
+                "principalType": "USER",
+                "principalId": "user-id",
+            },
+            "DescribePermissionSet": {
+                "PermissionSet": {
+                    "PermissionSetArn": "arn:aws:sso:::permissionSet/sso-instance-id/permission-set-id",
+                    "Name": "MatchingPermissionSetName",
+                }
+            },
+            "DescribeUser": {"UserName": "matchinguser@example.com"},
+        }
+        os.environ["PermissionSetNamePattern"] = "^MatchingPermissionSetName$"
+        os.environ["PrincipalGroupNamePattern"] = "^MatchingGroupName$"
+        os.environ["PrincipalUserNameEmail"] = "matchinguser@example.com"
+        mock_client.delete_account_assignment.return_value = {
+            "AccountAssignmentDeletionStatus": {
+                "Status": "IN_PROGRESS",
+                "RequestId": "11111111-2222-3333-4444-555555555555",
+            }
+        }
+        result = lambda_handler(event, None)
+        self.assertEqual(result["result"], "SUCCESS")
+        self.assertIn("IN_PROGRESS", result["message"])
+        self.assertIn("AccountAssignmentDeletionStatus", result["details"])
+        mock_client.delete_account_assignment.assert_called_once()
+
+    @patch("cerberus.src.cerberus.app.logger")
+    @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
+    def test_lambda_handler_status_failed(self, mock_client, mock_logger):
+        event = {
+            "DescribeInstance": {
+                "InstanceArn": "arn:aws:sso:::instance/sso-instance-id"
+            },
+            "RequestParameters": {
+                "targetId": "target-id",
+                "targetType": "AWS_ACCOUNT",
+                "principalType": "USER",
+                "principalId": "user-id",
+            },
+            "DescribePermissionSet": {
+                "PermissionSet": {
+                    "PermissionSetArn": "arn:aws:sso:::permissionSet/sso-instance-id/permission-set-id",
+                    "Name": "MatchingPermissionSetName",
+                }
+            },
+            "DescribeUser": {"UserName": "matchinguser@example.com"},
+        }
+        os.environ["PermissionSetNamePattern"] = "^MatchingPermissionSetName$"
+        os.environ["PrincipalGroupNamePattern"] = "^MatchingGroupName$"
+        os.environ["PrincipalUserNameEmail"] = "matchinguser@example.com"
+        mock_client.delete_account_assignment.return_value = {
+            "AccountAssignmentDeletionStatus": {
+                "Status": "FAILED",
+                "FailureReason": "Target account is out of scope.",
+                "RequestId": "99999999-2222-3333-4444-555555555555",
+            }
+        }
+        result = lambda_handler(event, None)
+        self.assertEqual(result["result"], "FAILED")
+        self.assertIn("Account assignment deletion failed", result["message"])
+        self.assertIn("AccountAssignmentDeletionStatus", result["details"])
+
+    @patch("cerberus.src.cerberus.app.logger")
+    @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
+    def test_lambda_handler_access_denied(self, mock_client, mock_logger):
+        event = {
+            "DescribeInstance": {
+                "InstanceArn": "arn:aws:sso:::instance/sso-instance-id"
+            },
+            "RequestParameters": {
+                "targetId": "target-id",
+                "targetType": "AWS_ACCOUNT",
+                "principalType": "USER",
+                "principalId": "user-id",
+            },
+            "DescribePermissionSet": {
+                "PermissionSet": {
+                    "PermissionSetArn": "arn:aws:sso:::permissionSet/sso-instance-id/permission-set-id",
+                    "Name": "MatchingPermissionSetName",
+                }
+            },
+            "DescribeUser": {"UserName": "matchinguser@example.com"},
+        }
+        os.environ["PermissionSetNamePattern"] = "^MatchingPermissionSetName$"
+        os.environ["PrincipalGroupNamePattern"] = "^MatchingGroupName$"
+        os.environ["PrincipalUserNameEmail"] = "matchinguser@example.com"
+
+        AccessDeniedException = type("AccessDeniedException", (Exception,), {})
+        mock_client.exceptions.AccessDeniedException = AccessDeniedException
+        mock_client.exceptions.ConflictException = type(
+            "ConflictException", (Exception,), {}
+        )
+        mock_client.exceptions.ResourceNotFoundException = type(
+            "ResourceNotFoundException", (Exception,), {}
+        )
+        mock_client.exceptions.ValidationException = type(
+            "ValidationException", (Exception,), {}
+        )
+        mock_client.delete_account_assignment.side_effect = AccessDeniedException(
+            "User is not authorized to perform this action."
+        )
+
+        result = lambda_handler(event, None)
+        self.assertEqual(result["result"], "FAILED")
+        self.assertEqual(result["errorName"], "AccessDeniedException")
+        self.assertIn("Access denied", result["message"])

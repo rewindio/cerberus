@@ -8,6 +8,7 @@ stack_name = "cerberus"
 [default.build.parameters]
 cached = true
 parallel = true
+use_container = true
 
 [default.validate.parameters]
 lint = true

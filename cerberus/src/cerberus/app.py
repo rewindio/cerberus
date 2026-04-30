@@ -108,7 +108,11 @@ def lambda_handler(event, context):
                 )
             )
 
-            # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sso-admin/client/delete_account_assignment.html
+            # DeleteAccountAssignment is async: the initial response usually returns
+            # Status=IN_PROGRESS and the actual deletion completes later. Treat any non-FAILED
+            # status as accepted; a synchronous Status=FAILED (rare — e.g. target out of scope)
+            # or any client.exceptions.* is a real failure. See:
+            # https://docs.aws.amazon.com/singlesignon/latest/APIReference/API_DeleteAccountAssignment.html
             response = client.delete_account_assignment(
                 InstanceArn=instanceArn,
                 TargetId=targetId,
@@ -117,24 +121,33 @@ def lambda_handler(event, context):
                 PrincipalType=principalType,
                 PrincipalId=principalId,
             )
-            response = {"AccountAssignmentDeletionStatus": {"Status": "SUCCEEDED"}}
+            status_obj = response.get("AccountAssignmentDeletionStatus", {})
+            status = status_obj.get("Status")
+            request_id = status_obj.get("RequestId")
+            logger.info(
+                "Account assignment deletion request accepted (status=%s, requestId=%s).",
+                status,
+                request_id,
+            )
 
-            if (
-                response.get("AccountAssignmentDeletionStatus").get("Status")
-                == "SUCCEEDED"
-            ):
-                logger.info("Account assignment deletion succeeded.")
-                return {
-                    "result": "SUCCESS",
-                    "message": "Account assignment deletion succeeded.",
-                }
-            else:
-                logger.error("Account assignment deletion failed: %s", response)
+            if status == "FAILED":
+                failure_reason = status_obj.get("FailureReason", "unknown")
+                logger.error(
+                    "Account assignment deletion failed at API: %s", failure_reason
+                )
                 return {
                     "result": "FAILED",
                     "message": "Account assignment deletion failed.",
                     "details": response,
                 }
+
+            return {
+                "result": "SUCCESS",
+                "message": "Account assignment deletion request accepted (status={}).".format(
+                    status
+                ),
+                "details": response,
+            }
         else:
             logger.info(
                 "Principal '{}' ({}) does not match Control Tower provisioned access pattern. No action taken.".format(
