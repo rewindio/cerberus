@@ -72,6 +72,22 @@ def lambda_handler(event, context):
 
     try:
 
+        # Operational mode: ENFORCE | DRY_RUN | DISABLED. DISABLED is normally enforced at the
+        # EventBridge rule level (the rule's State is DISABLED and no events reach this handler),
+        # but we honour it here too as defense-in-depth against direct invocation.
+        mode = os.environ.get("Mode", "ENFORCE").strip().upper()
+
+        if mode == "DISABLED":
+            logger.info(
+                "Cerberus is in DISABLED mode; ignoring invocation for principal '%s'.",
+                principalName,
+            )
+            return {
+                "result": "SUCCESS",
+                "message": "DISABLED: invocation ignored.",
+                "details": {"mode": "DISABLED"},
+            }
+
         permissionSetNamePattern = os.environ.get("PermissionSetNamePattern")
         permissionSetNamePatternRegex = re.compile(
             permissionSetNamePattern, re.IGNORECASE
@@ -102,6 +118,20 @@ def lambda_handler(event, context):
             re.match(principalGroupNameRegex, principalName)
             or principalUserNameEmail == principalName
         ):
+            if mode == "DRY_RUN":
+                logger.info(
+                    "DRY_RUN: would remove Control Tower provisioned '%s' access for principal '%s' on permission set '%s' targeting account '%s'.",
+                    principalType,
+                    principalName,
+                    permissionSetName,
+                    targetId,
+                )
+                return {
+                    "result": "SUCCESS",
+                    "message": "DRY_RUN: deletion skipped.",
+                    "details": {"mode": "DRY_RUN"},
+                }
+
             logger.info(
                 "Removing Control Tower provisioned '{}' access for principal '{}'.".format(
                     principalType, principalName
