@@ -6,6 +6,12 @@ import os
 
 class TestLambdaHandler(unittest.TestCase):
 
+    def tearDown(self):
+        # Mode is set by individual tests when they need DRY_RUN; remove it
+        # afterwards so it doesn't leak into the next test (which expects ENFORCE
+        # behavior, the os.environ.get default).
+        os.environ.pop("Mode", None)
+
     @patch("cerberus.src.cerberus.app.logger")
     @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
     def test_lambda_handler_successful_deletion(self, mock_client, mock_logger):
@@ -216,3 +222,71 @@ class TestLambdaHandler(unittest.TestCase):
         self.assertEqual(result["result"], "FAILED")
         self.assertEqual(result["errorName"], "AccessDeniedException")
         self.assertIn("Access denied", result["message"])
+
+    @patch("cerberus.src.cerberus.app.logger")
+    @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
+    def test_lambda_handler_dry_run_mode(self, mock_client, mock_logger):
+        event = {
+            "DescribeInstance": {
+                "InstanceArn": "arn:aws:sso:::instance/sso-instance-id"
+            },
+            "RequestParameters": {
+                "targetId": "target-id",
+                "targetType": "AWS_ACCOUNT",
+                "principalType": "USER",
+                "principalId": "user-id",
+            },
+            "DescribePermissionSet": {
+                "PermissionSet": {
+                    "PermissionSetArn": "arn:aws:sso:::permissionSet/sso-instance-id/permission-set-id",
+                    "Name": "MatchingPermissionSetName",
+                }
+            },
+            "DescribeUser": {"UserName": "matchinguser@example.com"},
+        }
+        os.environ["PermissionSetNamePattern"] = "^MatchingPermissionSetName$"
+        os.environ["PrincipalGroupNamePattern"] = "^MatchingGroupName$"
+        os.environ["PrincipalUserNameEmail"] = "matchinguser@example.com"
+        os.environ["Mode"] = "DRY_RUN"
+
+        result = lambda_handler(event, None)
+        self.assertEqual(result["result"], "SUCCESS")
+        self.assertIn("DRY_RUN", result["message"])
+        self.assertEqual(result["details"], {"mode": "DRY_RUN"})
+        mock_client.delete_account_assignment.assert_not_called()
+
+    @patch("cerberus.src.cerberus.app.logger")
+    @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
+    def test_lambda_handler_group_principal_match(self, mock_client, mock_logger):
+        event = {
+            "DescribeInstance": {
+                "InstanceArn": "arn:aws:sso:::instance/sso-instance-id"
+            },
+            "RequestParameters": {
+                "targetId": "target-id",
+                "targetType": "AWS_ACCOUNT",
+                "principalType": "GROUP",
+                "principalId": "group-id",
+            },
+            "DescribePermissionSet": {
+                "PermissionSet": {
+                    "PermissionSetArn": "arn:aws:sso:::permissionSet/sso-instance-id/permission-set-id",
+                    "Name": "MatchingPermissionSetName",
+                }
+            },
+            "DescribeGroup": {"DisplayName": "MatchingGroupName"},
+        }
+        os.environ["PermissionSetNamePattern"] = "^MatchingPermissionSetName$"
+        os.environ["PrincipalGroupNamePattern"] = "^MatchingGroupName$"
+        os.environ["PrincipalUserNameEmail"] = ""
+        mock_client.delete_account_assignment.return_value = {
+            "AccountAssignmentDeletionStatus": {
+                "Status": "SUCCEEDED",
+                "RequestId": "22222222-3333-4444-5555-666666666666",
+            }
+        }
+        result = lambda_handler(event, None)
+        self.assertEqual(result["result"], "SUCCESS")
+        self.assertIn("SUCCEEDED", result["message"])
+        self.assertIn("AccountAssignmentDeletionStatus", result["details"])
+        mock_client.delete_account_assignment.assert_called_once()
