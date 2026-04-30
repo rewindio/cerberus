@@ -225,6 +225,38 @@ class TestLambdaHandler(unittest.TestCase):
 
     @patch("cerberus.src.cerberus.app.logger")
     @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
+    def test_lambda_handler_disabled_mode(self, mock_client, mock_logger):
+        event = {
+            "DescribeInstance": {
+                "InstanceArn": "arn:aws:sso:::instance/sso-instance-id"
+            },
+            "RequestParameters": {
+                "targetId": "target-id",
+                "targetType": "AWS_ACCOUNT",
+                "principalType": "USER",
+                "principalId": "user-id",
+            },
+            "DescribePermissionSet": {
+                "PermissionSet": {
+                    "PermissionSetArn": "arn:aws:sso:::permissionSet/sso-instance-id/permission-set-id",
+                    "Name": "MatchingPermissionSetName",
+                }
+            },
+            "DescribeUser": {"UserName": "matchinguser@example.com"},
+        }
+        os.environ["PermissionSetNamePattern"] = "^MatchingPermissionSetName$"
+        os.environ["PrincipalGroupNamePattern"] = "^MatchingGroupName$"
+        os.environ["PrincipalUserNameEmail"] = "matchinguser@example.com"
+        os.environ["Mode"] = "DISABLED"
+
+        result = lambda_handler(event, None)
+        self.assertEqual(result["result"], "SUCCESS")
+        self.assertIn("DISABLED", result["message"])
+        self.assertEqual(result["details"], {"mode": "DISABLED"})
+        mock_client.delete_account_assignment.assert_not_called()
+
+    @patch("cerberus.src.cerberus.app.logger")
+    @patch("cerberus.src.cerberus.app.client", new_callable=MagicMock)
     def test_lambda_handler_dry_run_mode(self, mock_client, mock_logger):
         event = {
             "DescribeInstance": {

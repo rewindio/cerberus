@@ -72,9 +72,21 @@ def lambda_handler(event, context):
 
     try:
 
-        # Operational mode: ENFORCE | DRY_RUN. (DISABLED is enforced at the EventBridge rule
-        # level — the rule's State is set to DISABLED and no events reach this handler.)
+        # Operational mode: ENFORCE | DRY_RUN | DISABLED. DISABLED is normally enforced at the
+        # EventBridge rule level (the rule's State is DISABLED and no events reach this handler),
+        # but we honour it here too as defense-in-depth against direct invocation.
         mode = os.environ.get("Mode", "ENFORCE").strip().upper()
+
+        if mode == "DISABLED":
+            logger.info(
+                "Cerberus is in DISABLED mode; ignoring invocation for principal '%s'.",
+                principalName,
+            )
+            return {
+                "result": "SUCCESS",
+                "message": "DISABLED: invocation ignored.",
+                "details": {"mode": "DISABLED"},
+            }
 
         permissionSetNamePattern = os.environ.get("PermissionSetNamePattern")
         permissionSetNamePatternRegex = re.compile(

@@ -89,7 +89,16 @@ Subscribe `NotificationEmail` to a real on-call destination — a noisy alarm to
 
 ## Permission boundary
 
-The template ships an inline `AWS::IAM::ManagedPolicy` (`CerberusPermissionsBoundary`) attached to both the Lambda execution role and the state machine role. It whitelists only the namespaces required for IAM Identity Center cleanup: `sso:*` (read + `DeleteAccountAssignment` only), `identitystore:Describe*`, `lambda:InvokeFunction`, `logs:*`, `cloudwatch:PutMetricData`. Anything else (`iam:*`, `organizations:*`, `sts:AssumeRole`, `sso:CreateAccountAssignment`, `kms:*`, etc.) is implicitly denied.
+The template ships an inline `AWS::IAM::ManagedPolicy` (`CerberusPermissionsBoundary`) attached to both the Lambda execution role and the state machine role. It allows only the specific actions required for IAM Identity Center cleanup:
+
+- `sso:DeleteAccountAssignment`
+- `sso:DescribePermissionSet`, `sso:DescribeInstance`, `sso:ListPermissionSets`, `sso:GetPermissionSet`, `sso:DescribePermissionSetProvisioningStatus`
+- `identitystore:DescribeUser`, `identitystore:DescribeGroup`
+- `lambda:InvokeFunction`
+- `logs:CreateLogStream`, `logs:PutLogEvents`, `logs:DescribeLogGroups`, `logs:DescribeLogStreams`
+- `cloudwatch:PutMetricData`
+
+Anything else (`iam:*`, `organizations:*`, `sts:AssumeRole`, `sso:CreateAccountAssignment`, `kms:*`, etc.) is implicitly denied at the boundary regardless of inline policy grants.
 
 Service Control Policies do **not** apply to management-account principals. The permission boundary is the only IAM-layer guardrail and is intentionally tight.
 
