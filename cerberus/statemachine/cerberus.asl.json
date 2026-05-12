@@ -38,7 +38,7 @@
       "Type": "Pass",
       "Result": {
         "result": "SKIPPED",
-        "reason": "Target is the Management account; delegated admin cannot modify Management-account assignments."
+        "reason": "Target is the Management account; Cerberus skips it to prevent accidental self-lockout if a regex misfires against the management account's own admin assignments."
       },
       "ResultPath": "$.SkipReason",
       "End": true
